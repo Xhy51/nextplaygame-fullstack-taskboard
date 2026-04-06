@@ -6,6 +6,24 @@ It supports anonymous guest sessions, drag-and-drop task movement, real-time tas
 
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-wkzqtf7k)
 
+## Preview
+
+### Screenshot
+
+Add a project screenshot here after uploading an image to the repository, for example:
+
+```md
+![Kanban board screenshot](./docs/screenshot-kanban-board.png)
+```
+
+### Demo GIF
+
+Add a short drag-and-drop demo GIF here after uploading it to the repository, for example:
+
+```md
+![Kanban board demo](./docs/kanban-demo.gif)
+```
+
 ## Features
 
 - Four built-in workflow lanes: `To Do`, `In Progress`, `In Review`, `Done`
@@ -56,7 +74,13 @@ Create a new project in the Supabase dashboard.
 
 ### 3. Add environment variables
 
-Create `/.env.local` in the project root:
+Copy `.env.example` to `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Then update the values in `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -158,6 +182,13 @@ Common setup issues:
 - Attachments currently use mock object URLs instead of Supabase Storage
 - Team collaboration schema exists, but the current flow is optimized for single-user guest demos
 - No automated tests are included yet
+
+## Assets for README
+
+If you want the GitHub page to look more complete, add a `docs/` folder and place assets such as:
+
+- `docs/screenshot-kanban-board.png`
+- `docs/kanban-demo.gif`
 
 ## Recommended Next Steps
 
