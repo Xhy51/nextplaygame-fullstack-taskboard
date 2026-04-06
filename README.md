@@ -4,6 +4,8 @@ A polished Kanban-style task board built with Next.js 13, React 18, TypeScript, 
 
 It supports anonymous guest sessions, drag-and-drop task movement, real-time task updates, and a more visual card-based board UI.
 
+Current release: `v0.5.2`
+
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-wkzqtf7k)
 
 ## Preview
@@ -27,9 +29,14 @@ Add a short drag-and-drop demo GIF here after uploading it to the repository, fo
 ## Features
 
 - Four built-in workflow lanes: `To Do`, `In Progress`, `In Review`, `Done`
-- Drag-and-drop task movement with live lane highlighting
+- Drag-and-drop task movement with lane highlighting and insert indicators
 - Overlay drag preview that follows the cursor
-- Insert-position indicator when dropping between cards
+- Header toolbar with a single global `Add Task` action
+- Status-selectable task creation flow with default `To Do`
+- Only task titles open detail view; delete and drag interactions are isolated
+- Frontend-only lane sorting by due date or priority without extra database writes
+- Required due dates with a default value of today
+- Soft delete flow that archives deleted tasks with `deleted_at` and `deleted_by`
 - Anonymous guest authentication with Supabase Auth
 - Real-time task sync through Supabase Realtime
 - Task create, update, delete, and detail modal
@@ -87,17 +94,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### 4. Run the database migration
+### 4. Run the database migrations
 
 Open Supabase `SQL Editor` and run:
 
 ```sql
--- Paste the contents of:
+-- Run these files in order:
 -- supabase/migrations/20260405224118_001_create_kanban_schema.sql
+-- supabase/migrations/20260406120000_002_add_deleted_tasks_archive.sql
+-- supabase/migrations/20260406123000_003_make_due_date_required.sql
 ```
 
-Migration file:
+Migration files:
 [20260405224118_001_create_kanban_schema.sql](./supabase/migrations/20260405224118_001_create_kanban_schema.sql)
+[20260406120000_002_add_deleted_tasks_archive.sql](./supabase/migrations/20260406120000_002_add_deleted_tasks_archive.sql)
+[20260406123000_003_make_due_date_required.sql](./supabase/migrations/20260406123000_003_make_due_date_required.sql)
 
 ### 5. Enable anonymous auth
 
@@ -156,11 +167,20 @@ npm run typecheck
 - A floating drag overlay follows the pointer
 - The target lane highlights as you move across the board
 - A drop indicator line shows the insertion position inside a lane
+- Clicking the task title opens details
+- Clicking the delete action archives the task instead of hard-deleting it
 
 ### Realtime
 
 - The board subscribes to task `INSERT`, `UPDATE`, and `DELETE` events
 - Other open sessions connected to the same board receive live task changes
+
+### Sorting
+
+- Each lane can be temporarily sorted by due date or priority
+- Sorting is handled in the frontend view layer
+- Sort actions do not rewrite task order in the database
+- Default lane display order is by nearest due date first
 
 ## Supabase Notes
 
@@ -177,11 +197,15 @@ Common setup issues:
 - Realtime not updating
   Usually means `public.tasks` is not included in the `supabase_realtime` publication.
 
+- Task deletion not working as expected
+  Make sure the archived-task migration has been applied so `deleted_tasks` exists.
+
 ## Current Limitations
 
 - Attachments currently use mock object URLs instead of Supabase Storage
 - Team collaboration schema exists, but the current flow is optimized for single-user guest demos
 - No automated tests are included yet
+- Lane sorting is currently view-only and resets to the default order after reload
 
 ## Assets for README
 
@@ -194,7 +218,8 @@ If you want the GitHub page to look more complete, add a `docs/` folder and plac
 
 - Add Supabase Storage for real file uploads
 - Add board sharing and team-member flows
-- Add filtering, search, and task sorting controls
+- Add deleted-task list and restore flow
+- Add filtering, search, and saved sort preferences
 - Add automated tests for board initialization and drag-drop behavior
 - Add a deployment guide for Vercel or Netlify
 

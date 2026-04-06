@@ -8,11 +8,12 @@ import { CSS } from '@dnd-kit/utilities';
 interface SortableTaskCardProps {
   task: Task;
   labels: LabelType[];
-  onDelete?: () => void;
+  userId: string;
+  onDelete?: (task: Task) => void;
   onClick?: () => void;
 }
 
-export function SortableTaskCard({ task, labels, onDelete, onClick }: SortableTaskCardProps) {
+export function SortableTaskCard({ task, labels, userId, onDelete, onClick }: SortableTaskCardProps) {
   const {
     attributes,
     listeners,
@@ -34,14 +35,17 @@ export function SortableTaskCard({ task, labels, onDelete, onClick }: SortableTa
       ref={setNodeRef}
       style={style}
       className={isDragging ? 'brightness-95 saturate-75' : ''}
-      {...attributes}
-      {...listeners}
     >
       <TaskCard
         task={task}
         labels={labels}
+        userId={userId}
         onDelete={onDelete}
         onClick={onClick}
+        dragAreaProps={{
+          attributes,
+          listeners,
+        }}
       />
     </div>
   );

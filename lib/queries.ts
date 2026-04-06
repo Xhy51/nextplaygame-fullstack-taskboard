@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Board, Column, Task, Label, TaskAttachment } from './types';
+import { Board, Column, DeletedTask, Task, Label, TaskAttachment } from './types';
 
 export const boardQueries = {
   async getOrCreateBoard(userId: string): Promise<Board> {
@@ -130,6 +130,7 @@ export const taskQueries = {
   ): Promise<Task> {
     const tasksInColumn = await taskQueries.getTasksByColumn(columnId);
     const order = tasksInColumn.length;
+    const defaultDueDate = new Date().toISOString().split('T')[0];
 
     const { data, error } = await supabase
       .from('tasks')
@@ -141,7 +142,7 @@ export const taskQueries = {
           title: task.title,
           description: task.description,
           priority: task.priority || 'normal',
-          due_date: task.due_date,
+          due_date: task.due_date || defaultDueDate,
           assignee_id: task.assignee_id,
           labels: task.labels || [],
           status: 'todo',
@@ -190,6 +191,55 @@ export const taskQueries = {
 
     if (error) throw error;
     return data as Task;
+  },
+
+  async archiveTask(task: Task, deletedBy: string): Promise<DeletedTask> {
+    const archivedPayload = {
+      original_task_id: task.id,
+      board_id: task.board_id,
+      column_id: task.column_id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      due_date: task.due_date,
+      assignee_id: task.assignee_id,
+      user_id: task.user_id,
+      labels: task.labels,
+      order: task.order,
+      created_at: task.created_at,
+      updated_at: task.updated_at,
+      deleted_at: new Date().toISOString(),
+      deleted_by: deletedBy,
+    };
+
+    const { data: archivedTask, error: archiveError } = await supabase
+      .from('deleted_tasks')
+      .insert([archivedPayload])
+      .select()
+      .single();
+
+    if (archiveError) throw archiveError;
+
+    const { error: deleteError } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', task.id);
+
+    if (deleteError) throw deleteError;
+
+    return archivedTask as DeletedTask;
+  },
+
+  async getDeletedTasks(boardId: string): Promise<DeletedTask[]> {
+    const { data, error } = await supabase
+      .from('deleted_tasks')
+      .select('*')
+      .eq('board_id', boardId)
+      .order('deleted_at', { ascending: false });
+
+    if (error) throw error;
+    return data as DeletedTask[];
   },
 
   async deleteTask(taskId: string): Promise<void> {

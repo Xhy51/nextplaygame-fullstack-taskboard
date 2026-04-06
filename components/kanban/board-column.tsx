@@ -1,12 +1,9 @@
 'use client';
 
 import { Column, Task, Label as LabelType } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { TaskForm } from './task-form';
 import { TaskDetailModal } from './task-detail-modal';
-import { CheckCircle2, CircleDashed, Eye, Plus, TimerReset } from 'lucide-react';
-import { taskQueries } from '@/lib/queries';
+import { Button } from '@/components/ui/button';
+import { CalendarDays, CheckCircle2, CircleDashed, Eye, Flag, TimerReset } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import {
@@ -22,7 +19,7 @@ interface BoardColumnProps {
   userId: string;
   boardId: string;
   onTaskCreated: () => void;
-  onTaskDeleted: () => void;
+  onTaskDeleted: (task: Task) => void;
   isDropTarget?: boolean;
   insertionTaskId?: string | null;
   insertionPosition?: 'before' | 'after' | null;
@@ -111,8 +108,8 @@ export function BoardColumn({
   insertionTaskId = null,
   insertionPosition = null,
 }: BoardColumnProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
+  const [dueDateSortDirection, setDueDateSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [prioritySortDirection, setPrioritySortDirection] = useState<'asc' | 'desc' | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const { setNodeRef, isOver } = useDroppable({
@@ -120,28 +117,49 @@ export function BoardColumn({
   });
   const theme = columnThemeMap[column.name] ?? columnThemeMap['To Do'];
   const Icon = theme.icon;
+  const priorityRank = { low: 0, normal: 1, high: 2 };
+  const displayedTasks = [...tasks].sort((left, right) => {
+    if (prioritySortDirection) {
+      const leftPriority = priorityRank[left.priority];
+      const rightPriority = priorityRank[right.priority];
 
-  const handleCreateTask = async (data: {
-    title: string;
-    description?: string;
-    priority: any;
-    due_date?: string;
-  }) => {
-    setIsCreating(true);
-    try {
-      await taskQueries.createTask(boardId, column.id, userId, {
-        ...data,
-        status: 'todo',
-      });
-      toast.success('Task created');
-      setIsOpen(false);
-      onTaskCreated();
-    } catch (error) {
-      toast.error('Failed to create task');
-      console.error('Create error:', error);
-    } finally {
-      setIsCreating(false);
+      if (leftPriority !== rightPriority) {
+        return prioritySortDirection === 'asc'
+          ? leftPriority - rightPriority
+          : rightPriority - leftPriority;
+      }
     }
+
+    const leftHasDate = Boolean(left.due_date);
+    const rightHasDate = Boolean(right.due_date);
+    const leftTime = left.due_date ? new Date(left.due_date).getTime() : 0;
+    const rightTime = right.due_date ? new Date(right.due_date).getTime() : 0;
+
+    if (!leftHasDate && !rightHasDate) {
+      return left.order - right.order;
+    }
+
+    if (!leftHasDate) return 1;
+    if (!rightHasDate) return -1;
+
+    if (leftTime !== rightTime) {
+      return dueDateSortDirection === 'asc' ? leftTime - rightTime : rightTime - leftTime;
+    }
+
+    return left.order - right.order;
+  });
+
+  const handleDueDateSort = () => {
+    const nextDirection = dueDateSortDirection === 'asc' ? 'desc' : 'asc';
+    setDueDateSortDirection(nextDirection);
+    setPrioritySortDirection(null);
+    toast.success(`Sorted by due date (${nextDirection})`);
+  };
+
+  const handlePrioritySort = () => {
+    const nextDirection = prioritySortDirection === 'asc' ? 'desc' : 'asc';
+    setPrioritySortDirection(nextDirection);
+    toast.success(`Sorted by priority (${nextDirection})`);
   };
 
   return (
@@ -169,13 +187,37 @@ export function BoardColumn({
               </p>
             </div>
           </div>
-          <span className={`text-xs md:text-sm font-medium px-2.5 py-1 rounded-full shadow-sm ${theme.badge}`}>
-            {tasks.length}
-          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 rounded-full border border-white/60 bg-white/75 p-0 text-gray-600 shadow-sm transition-colors hover:bg-white hover:text-gray-900 dark:border-white/10 dark:bg-slate-900/70 dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              onClick={handleDueDateSort}
+              disabled={tasks.length < 2}
+              title={`Sort by due date ${dueDateSortDirection === 'asc' ? 'descending' : 'ascending'}`}
+            >
+              <CalendarDays className={`h-4 w-4 ${dueDateSortDirection === 'desc' ? 'rotate-180' : ''}`} />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 rounded-full border border-white/60 bg-white/75 p-0 text-gray-600 shadow-sm transition-colors hover:bg-white hover:text-gray-900 dark:border-white/10 dark:bg-slate-900/70 dark:text-gray-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              onClick={handlePrioritySort}
+              disabled={tasks.length < 2}
+              title={`Sort by priority ${prioritySortDirection === 'asc' ? 'descending' : 'ascending'}`}
+            >
+              <Flag className={`h-4 w-4 ${prioritySortDirection === 'desc' ? 'rotate-180' : ''}`} />
+            </Button>
+            <span className={`text-xs md:text-sm font-medium px-2.5 py-1 rounded-full shadow-sm ${theme.badge}`}>
+              {tasks.length}
+            </span>
+          </div>
         </div>
       </div>
 
-      <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={displayedTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div
           ref={setNodeRef}
           className={`relative flex-1 space-y-3 overflow-y-auto pr-2 mb-3 rounded-2xl border border-dashed border-white/40 p-2 transition-all dark:border-white/5 ${
@@ -196,7 +238,7 @@ export function BoardColumn({
               <p className="text-sm">No tasks yet</p>
             </div>
           ) : (
-            tasks.map(task => (
+            displayedTasks.map(task => (
               <div key={task.id} className="relative">
                 {insertionTaskId === task.id && insertionPosition === 'before' ? (
                   <div className="pointer-events-none absolute inset-x-2 -top-2 z-10 h-1.5 rounded-full bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 shadow-[0_0_0_1px_rgba(96,165,250,0.2),0_8px_18px_-10px_rgba(59,130,246,0.85)]" />
@@ -204,6 +246,7 @@ export function BoardColumn({
                 <SortableTaskCard
                   task={task}
                   labels={labels}
+                  userId={userId}
                   onDelete={onTaskDeleted}
                   onClick={() => {
                     setSelectedTask(task);
@@ -218,24 +261,6 @@ export function BoardColumn({
           )}
         </div>
       </SortableContext>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="outline"
-            className={`w-full justify-start rounded-xl border px-4 py-6 text-sm font-medium transition-[box-shadow,background-color,color,filter] active:scale-[0.99] ${theme.button}`}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Task</DialogTitle>
-          </DialogHeader>
-          <TaskForm onSubmit={handleCreateTask} isLoading={isCreating} />
-        </DialogContent>
-      </Dialog>
 
       <TaskDetailModal
         task={selectedTask}

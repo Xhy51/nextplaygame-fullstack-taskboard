@@ -5,10 +5,13 @@ import { Board, Column, Task, Label as LabelType } from '@/lib/types';
 import { BoardColumn } from './board-column';
 import { BoardHeader } from './board-header';
 import { TaskCard } from './task-card';
+import { TaskForm } from './task-form';
 import { boardQueries, columnQueries, taskQueries, labelQueries } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   closestCorners,
   DndContext,
@@ -21,6 +24,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { Plus } from 'lucide-react';
 
 interface KanbanBoardProps {
   userId: string;
@@ -42,6 +46,8 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [insertionIndicator, setInsertionIndicator] = useState<{
     columnId: string;
     taskId: string | null;
@@ -388,6 +394,42 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
     }
   };
 
+  const handleTaskDeleted = (task: Task) => {
+    setTasks(prev => prev.filter(existingTask => existingTask.id !== task.id));
+  };
+
+  const handleCreateTask = async (data: {
+    title: string;
+    description?: string;
+    priority: Task['priority'];
+    due_date: string;
+    status?: Task['status'];
+  }) => {
+    const status = data.status ?? 'todo';
+    const targetColumn = columns.find(column => columnStatusMap[column.name] === status);
+
+    if (!targetColumn || !board) {
+      toast.error('Target column not found');
+      return;
+    }
+
+    setIsCreatingTask(true);
+    try {
+      await taskQueries.createTask(board.id, targetColumn.id, userId, {
+        ...data,
+        status,
+      });
+      toast.success('Task created');
+      setIsCreateTaskOpen(false);
+      loadBoardData();
+    } catch (error) {
+      toast.error('Failed to create task');
+      console.error('Create error:', error);
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
+
   return (
     <DndContext
       collisionDetection={closestCorners}
@@ -405,11 +447,34 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
 
         <div className="flex-1 overflow-x-auto">
           <div className="p-6 space-y-4">
-            <div
-              data-testid="kanban-test-element"
-              className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900"
-            >
-              Test element
+            <div className="sticky top-0 z-20 -mx-6 border-b border-slate-200/70 bg-white/90 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/90">
+              <div className="flex items-center gap-3">
+                <div
+                  data-testid="kanban-test-element"
+                  className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900"
+                >
+                  Test element
+                </div>
+                <Dialog open={isCreateTaskOpen} onOpenChange={setIsCreateTaskOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="rounded-xl px-4 shadow-[0_12px_24px_-18px_rgba(37,99,235,0.8)]">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Task
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Task</DialogTitle>
+                    </DialogHeader>
+                    <TaskForm
+                      onSubmit={handleCreateTask}
+                      isLoading={isCreatingTask}
+                      showStatusSelect
+                      defaultStatus="todo"
+                    />
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
             <div className="flex gap-4 overflow-x-auto pb-6">
               {columns.map(column => (
@@ -421,7 +486,7 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
                   userId={userId}
                   boardId={board.id}
                   onTaskCreated={loadBoardData}
-                  onTaskDeleted={loadBoardData}
+                  onTaskDeleted={handleTaskDeleted}
                   isDropTarget={activeColumnId === column.id}
                   insertionTaskId={
                     insertionIndicator?.columnId === column.id
@@ -442,7 +507,7 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
       <DragOverlay adjustScale={false}>
         {activeTask ? (
           <div className="pointer-events-none w-80 translate-x-4 -translate-y-3 drop-shadow-[0_30px_40px_rgba(15,23,42,0.28)]">
-            <TaskCard task={activeTask} labels={labels} />
+            <TaskCard task={activeTask} labels={labels} userId={userId} />
           </div>
         ) : null}
       </DragOverlay>

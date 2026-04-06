@@ -35,6 +35,26 @@ export interface Task {
   updated_at: string;
 }
 
+export interface DeletedTask {
+  id: string;
+  original_task_id: string;
+  board_id: string;
+  column_id: string;
+  title: string;
+  description?: string;
+  status: Status;
+  priority: Priority;
+  due_date?: string;
+  assignee_id?: string;
+  user_id: string;
+  labels: string[];
+  order: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string;
+  deleted_by: string;
+}
+
 export interface Label {
   id: string;
   board_id: string;

@@ -10,31 +10,56 @@ import { useState } from 'react';
 import { taskQueries } from '@/lib/queries';
 import { toast } from 'sonner';
 
+interface DragAreaProps {
+  attributes?: any;
+  listeners?: any;
+}
+
 interface TaskCardProps {
   task: Task;
   labels: LabelType[];
-  onDelete?: () => void;
+  userId: string;
+  onDelete?: (task: Task) => void;
   onClick?: () => void;
+  dragAreaProps?: DragAreaProps;
 }
 
-export function TaskCard({ task, labels, onDelete, onClick }: TaskCardProps) {
+export function TaskCard({
+  task,
+  labels,
+  userId,
+  onDelete,
+  onClick,
+  dragAreaProps,
+}: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const taskLabels = labels.filter(l => task.labels.includes(l.id));
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    const confirmed = window.confirm(
+      `Delete "${task.title}"?\n\nThe task will be removed from the board and archived in the deleted list.`
+    );
+
+    if (!confirmed) return;
+
     setIsDeleting(true);
     try {
-      await taskQueries.deleteTask(task.id);
+      await taskQueries.archiveTask(task, userId);
+      onDelete?.(task);
       toast.success('Task deleted');
-      onDelete?.();
     } catch (error) {
       toast.error('Failed to delete task');
       console.error('Delete error:', error);
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const stopDragGesture = (e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   const priorityColor = {
@@ -45,20 +70,34 @@ export function TaskCard({ task, labels, onDelete, onClick }: TaskCardProps) {
 
   return (
     <Card
-      onClick={onClick}
-      className="group relative overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br from-white via-white to-slate-50/90 p-3 shadow-[0_16px_30px_-20px_rgba(15,23,42,0.45),0_8px_16px_-12px_rgba(15,23,42,0.18)] transition-all duration-200 cursor-pointer hover:-translate-y-1 hover:shadow-[0_24px_40px_-22px_rgba(15,23,42,0.55),0_14px_24px_-18px_rgba(15,23,42,0.24)] dark:border-slate-700/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900"
+      className="group relative overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br from-white via-white to-slate-50/90 p-3 shadow-[0_16px_30px_-20px_rgba(15,23,42,0.45),0_8px_16px_-12px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_40px_-22px_rgba(15,23,42,0.55),0_14px_24px_-18px_rgba(15,23,42,0.24)] dark:border-slate-700/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900"
     >
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-80 dark:via-slate-300/30" />
       <div className="pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-full bg-white/60 blur-2xl dark:bg-white/5" />
-      <div className="space-y-2">
+      <div
+        className="space-y-2 cursor-grab active:cursor-grabbing"
+        {...dragAreaProps?.attributes}
+        {...dragAreaProps?.listeners}
+      >
         <div className="flex items-start justify-between gap-2">
-          <h3 className="pr-2 font-semibold text-sm text-gray-900 dark:text-white flex-1 line-clamp-2">
-            {task.title}
-          </h3>
+          <button
+            type="button"
+            className="flex-1 pr-2 text-left font-semibold text-sm text-gray-900 underline decoration-slate-300 decoration-2 underline-offset-4 transition-colors hover:text-blue-700 hover:decoration-blue-400 dark:text-white dark:decoration-slate-600 dark:hover:text-blue-300 dark:hover:decoration-blue-500"
+            onPointerDown={stopDragGesture}
+            onMouseDown={stopDragGesture}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick?.();
+            }}
+          >
+            <span className="line-clamp-2">{task.title}</span>
+          </button>
           <Button
             size="sm"
             variant="ghost"
             className="h-7 w-7 rounded-full border border-transparent p-0 opacity-0 transition-all group-hover:opacity-100 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+            onPointerDown={stopDragGesture}
+            onMouseDown={stopDragGesture}
             onClick={handleDelete}
             disabled={isDeleting}
           >

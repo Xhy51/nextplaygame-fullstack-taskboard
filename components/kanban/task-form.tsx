@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,26 +19,44 @@ interface TaskFormProps {
     title: string;
     description?: string;
     priority: Priority;
-    due_date?: string;
+    due_date: string;
+    status?: Task['status'];
   }) => Promise<void>;
   isLoading?: boolean;
+  showStatusSelect?: boolean;
+  defaultStatus?: Task['status'];
 }
 
-export function TaskForm({ onSubmit, isLoading = false }: TaskFormProps) {
+const today = new Date().toISOString().split('T')[0];
+
+export function TaskForm({
+  onSubmit,
+  isLoading = false,
+  showStatusSelect = false,
+  defaultStatus = 'todo',
+}: TaskFormProps) {
   const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       title: '',
       description: '',
       priority: 'normal' as Priority,
-      due_date: '',
+      due_date: today,
+      status: defaultStatus,
     },
   });
 
   const priority = watch('priority');
+  const status = watch('status');
 
   const onSubmitForm = async (data: any) => {
     await onSubmit(data);
-    reset();
+    reset({
+      title: '',
+      description: '',
+      priority: 'normal',
+      due_date: today,
+      status: defaultStatus,
+    });
   };
 
   return (
@@ -72,6 +89,25 @@ export function TaskForm({ onSubmit, isLoading = false }: TaskFormProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
+        {showStatusSelect ? (
+          <div>
+            <Label htmlFor="status" className="text-sm font-medium">
+              Status
+            </Label>
+            <Select value={status} onValueChange={(value) => setValue('status', value as Task['status'])}>
+              <SelectTrigger id="status" className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todo">To Do</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="in_review">In Review</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
         <div>
           <Label htmlFor="priority" className="text-sm font-medium">
             Priority
@@ -90,12 +126,12 @@ export function TaskForm({ onSubmit, isLoading = false }: TaskFormProps) {
 
         <div>
           <Label htmlFor="due_date" className="text-sm font-medium">
-            Due Date
+            Due Date *
           </Label>
           <Input
             id="due_date"
             type="date"
-            {...register('due_date')}
+            {...register('due_date', { required: 'Due date is required' })}
             className="mt-1"
             disabled={isLoading}
           />
