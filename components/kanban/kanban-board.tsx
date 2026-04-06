@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react';
 import { Board, Column, Task, Label as LabelType } from '@/lib/types';
 import { BoardColumn } from './board-column';
 import { BoardHeader } from './board-header';
+import { TaskCard } from './task-card';
 import { boardQueries, columnQueries, taskQueries, labelQueries } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  closestCorners,
   DndContext,
+  DragCancelEvent,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  DragMoveEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -20,6 +26,13 @@ interface KanbanBoardProps {
   userId: string;
 }
 
+const columnStatusMap: Record<string, Task['status']> = {
+  'To Do': 'todo',
+  'In Progress': 'in_progress',
+  'In Review': 'in_review',
+  Done: 'done',
+};
+
 export function KanbanBoard({ userId }: KanbanBoardProps) {
   const [board, setBoard] = useState<Board | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
@@ -27,6 +40,13 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
   const [labels, setLabels] = useState<LabelType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [insertionIndicator, setInsertionIndicator] = useState<{
+    columnId: string;
+    taskId: string | null;
+    position: 'before' | 'after' | null;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor)
@@ -49,7 +69,24 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
       const labelsData = await labelQueries.getLabels(boardData.id);
       setLabels(labelsData);
     } catch (err) {
-      setError('Failed to load board');
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String(err.message)
+          : 'Failed to load board';
+      const details =
+        err && typeof err === 'object' && 'details' in err && err.details
+          ? ` Details: ${String(err.details)}`
+          : '';
+      const hint =
+        err && typeof err === 'object' && 'hint' in err && err.hint
+          ? ` Hint: ${String(err.hint)}`
+          : '';
+      const code =
+        err && typeof err === 'object' && 'code' in err && err.code
+          ? ` (${String(err.code)})`
+          : '';
+
+      setError(`${message}${code}${details}${hint}`);
       console.error('Load error:', err);
       toast.error('Failed to load board');
     } finally {
@@ -130,9 +167,103 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
   }
 
   const getTasksByColumn = (columnId: string) => tasks.filter(t => t.column_id === columnId);
+  const activeTask = activeTaskId ? tasks.find(task => task.id === activeTaskId) ?? null : null;
+  const setInsertionIndicatorIfChanged = (
+    nextIndicator: {
+      columnId: string;
+      taskId: string | null;
+      position: 'before' | 'after' | null;
+    } | null
+  ) => {
+    setInsertionIndicator(prev => {
+      if (
+        prev?.columnId === nextIndicator?.columnId &&
+        prev?.taskId === nextIndicator?.taskId &&
+        prev?.position === nextIndicator?.position
+      ) {
+        return prev;
+      }
+
+      return nextIndicator;
+    });
+  };
+
+  const getDropState = (
+    overId: string | undefined,
+    activeId: string,
+    activeMidY?: number,
+    overTop?: number,
+    overHeight?: number
+  ) => {
+    if (!overId) return null;
+
+    if (overId.startsWith('column-')) {
+      return {
+        columnId: overId.replace('column-', ''),
+        taskId: null,
+        position: null as 'before' | 'after' | null,
+      };
+    }
+
+    const overTask = tasks.find(task => task.id === overId);
+    if (!overTask) return null;
+
+    const overMidY =
+      typeof overTop === 'number' && typeof overHeight === 'number'
+        ? overTop + overHeight / 2
+        : undefined;
+    const position =
+      typeof activeMidY === 'number' && typeof overMidY === 'number' && activeMidY > overMidY
+        ? 'after'
+        : 'before';
+
+    return {
+      columnId: overTask.column_id,
+      taskId: overTask.id === activeId ? null : overTask.id,
+      position: overTask.id === activeId ? null : (position as 'before' | 'after'),
+    };
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveTaskId(event.active.id as string);
+  };
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    const overId = event.over?.id?.toString();
+    const activeMidY = event.active.rect.current.translated
+      ? event.active.rect.current.translated.top + event.active.rect.current.translated.height / 2
+      : undefined;
+    const dropState = getDropState(
+      overId,
+      event.active.id as string,
+      activeMidY,
+      event.over?.rect.top,
+      event.over?.rect.height
+    );
+
+    setActiveColumnId(prev => (prev === (dropState?.columnId ?? null) ? prev : (dropState?.columnId ?? null)));
+    setInsertionIndicatorIfChanged(
+      dropState
+        ? {
+            columnId: dropState.columnId,
+            taskId: dropState.taskId,
+            position: dropState.position,
+          }
+        : null
+    );
+  };
+
+  const handleDragCancel = (_event: DragCancelEvent) => {
+    setActiveTaskId(null);
+    setActiveColumnId(null);
+    setInsertionIndicatorIfChanged(null);
+  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveTaskId(null);
+    setActiveColumnId(null);
+    setInsertionIndicatorIfChanged(null);
 
     if (!over) return;
 
@@ -141,31 +272,108 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
 
     if (!task) return;
 
-    if (over.id.toString().startsWith('column-')) {
-      const columnId = over.id.toString().replace('column-', '');
-      const targetColumn = columns.find(c => c.id === columnId);
+    const activeMidY = active.rect.current.translated
+      ? active.rect.current.translated.top + active.rect.current.translated.height / 2
+      : undefined;
+    const dropState = getDropState(
+      over.id.toString(),
+      taskId,
+      activeMidY,
+      over.rect.top,
+      over.rect.height
+    );
 
-      if (!targetColumn || task.column_id === columnId) return;
+    if (!dropState) return;
 
-      try {
-        const columnTasks = getTasksByColumn(columnId);
-        const newOrder = columnTasks.length;
+    const targetColumn = columns.find(c => c.id === dropState.columnId);
+    if (!targetColumn) return;
 
-        await taskQueries.updateTaskStatus(taskId, columnId, targetColumn.name.toLowerCase().replace(' ', '_'), newOrder);
+    const nextStatus = columnStatusMap[targetColumn.name];
+    if (!nextStatus) {
+      toast.error('Unsupported target column');
+      return;
+    }
 
-        setTasks(prev =>
-          prev.map(t =>
-            t.id === taskId
-              ? { ...t, column_id: columnId, order: newOrder }
-              : t
-          )
-        );
+    const sourceColumnId = task.column_id;
+    const movingAcrossColumns = sourceColumnId !== dropState.columnId;
+    const targetTasks = getTasksByColumn(dropState.columnId).filter(t => t.id !== taskId);
+    const sourceTasks = movingAcrossColumns
+      ? getTasksByColumn(sourceColumnId).filter(t => t.id !== taskId)
+      : targetTasks;
 
-        toast.success('Task moved');
-      } catch (error) {
-        console.error('Failed to move task:', error);
-        toast.error('Failed to move task');
+    const insertionIndex = dropState.taskId
+      ? Math.max(
+          0,
+          targetTasks.findIndex(t => t.id === dropState.taskId) +
+            (dropState.position === 'after' ? 1 : 0)
+        )
+      : targetTasks.length;
+
+    const reorderedTargetTasks = [...targetTasks];
+    reorderedTargetTasks.splice(insertionIndex, 0, {
+      ...task,
+      column_id: dropState.columnId,
+      status: nextStatus,
+    });
+
+    const nextTasks = tasks.map(existingTask => {
+      if (existingTask.id === taskId) {
+        return {
+          ...existingTask,
+          column_id: dropState.columnId,
+          status: nextStatus,
+        };
       }
+      return existingTask;
+    });
+
+    const sourceReorderPayload = sourceTasks.map((sourceTask, index) => ({
+      id: sourceTask.id,
+      order: index,
+    }));
+    const targetReorderPayload = reorderedTargetTasks.map((targetTask, index) => ({
+      id: targetTask.id,
+      order: index,
+    }));
+
+    try {
+      setTasks(
+        nextTasks.map(existingTask => {
+          const sourceMatch = sourceReorderPayload.find(item => item.id === existingTask.id);
+          if (sourceMatch) {
+            return { ...existingTask, order: sourceMatch.order };
+          }
+
+          const targetMatch = targetReorderPayload.find(item => item.id === existingTask.id);
+          if (targetMatch) {
+            return {
+              ...existingTask,
+              order: targetMatch.order,
+              column_id:
+                existingTask.id === taskId ? dropState.columnId : existingTask.column_id,
+              status: existingTask.id === taskId ? nextStatus : existingTask.status,
+            };
+          }
+
+          return existingTask;
+        })
+      );
+
+      await taskQueries.updateTaskStatus(taskId, dropState.columnId, nextStatus, insertionIndex);
+
+      const reorderUpdates = movingAcrossColumns
+        ? [...sourceReorderPayload, ...targetReorderPayload.filter(item => item.id !== taskId)]
+        : targetReorderPayload.filter(item => item.id !== taskId);
+
+      if (reorderUpdates.length > 0) {
+        await taskQueries.reorderTasks(reorderUpdates);
+      }
+
+      toast.success('Task moved');
+    } catch (error) {
+      console.error('Failed to move task:', error);
+      toast.error('Failed to move task');
+      loadBoardData();
     }
   };
 
@@ -181,7 +389,14 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
   };
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      collisionDetection={closestCorners}
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragCancel={handleDragCancel}
+      onDragEnd={handleDragEnd}
+    >
       <div className="flex flex-col h-screen bg-white dark:bg-slate-950">
         <BoardHeader
           boardName={board.name}
@@ -190,6 +405,12 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
 
         <div className="flex-1 overflow-x-auto">
           <div className="p-6 space-y-4">
+            <div
+              data-testid="kanban-test-element"
+              className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900"
+            >
+              Test element
+            </div>
             <div className="flex gap-4 overflow-x-auto pb-6">
               {columns.map(column => (
                 <BoardColumn
@@ -201,12 +422,30 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
                   boardId={board.id}
                   onTaskCreated={loadBoardData}
                   onTaskDeleted={loadBoardData}
+                  isDropTarget={activeColumnId === column.id}
+                  insertionTaskId={
+                    insertionIndicator?.columnId === column.id
+                      ? insertionIndicator.taskId
+                      : null
+                  }
+                  insertionPosition={
+                    insertionIndicator?.columnId === column.id
+                      ? insertionIndicator.position
+                      : null
+                  }
                 />
               ))}
             </div>
           </div>
         </div>
       </div>
+      <DragOverlay adjustScale={false}>
+        {activeTask ? (
+          <div className="pointer-events-none w-80 translate-x-4 -translate-y-3 drop-shadow-[0_30px_40px_rgba(15,23,42,0.28)]">
+            <TaskCard task={activeTask} labels={labels} />
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

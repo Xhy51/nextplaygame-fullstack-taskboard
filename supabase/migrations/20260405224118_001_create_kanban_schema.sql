@@ -144,11 +144,7 @@ ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own boards"
   ON boards FOR SELECT
   TO authenticated
-  USING (user_id = auth.uid() OR EXISTS (
-    SELECT 1 FROM team_members 
-    WHERE team_members.board_id = boards.id 
-    AND team_members.user_id = auth.uid()
-  ));
+  USING (user_id = auth.uid());
 
 CREATE POLICY "Users can create boards"
   ON boards FOR INSERT
@@ -347,18 +343,31 @@ CREATE POLICY "Users can delete their attachments"
   ));
 
 -- RLS Policies for team_members
-CREATE POLICY "Users can view team members"
-  ON team_members FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid() OR EXISTS (
-    SELECT 1 FROM boards
-    WHERE boards.id = team_members.board_id
-    AND (boards.user_id = auth.uid() OR EXISTS (
-      SELECT 1 FROM team_members tm2
-      WHERE tm2.board_id = boards.id 
-      AND tm2.user_id = auth.uid()
-    ))
-  ));
+--CREATE POLICY "Users can view team members"
+  --ON team_members FOR SELECT
+  --TO authenticated
+  --USING (
+    --user_id = auth.uid()
+    --OR EXISTS (
+      --SELECT 1 FROM boards
+      --WHERE boards.id = team_members.board_id
+      --AND boards.user_id = auth.uid()
+    --)
+  --);
+
+create policy "Users can view team members"
+  on public.team_members
+  for select
+  to authenticated
+  using (
+    user_id = auth.uid()
+    or exists (
+      select 1
+      from public.boards
+      where boards.id = team_members.board_id
+      and boards.user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Board owners can manage team members"
   ON team_members FOR INSERT
