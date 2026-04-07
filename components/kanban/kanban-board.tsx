@@ -302,6 +302,10 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
 
     const sourceColumnId = task.column_id;
     const movingAcrossColumns = sourceColumnId !== dropState.columnId;
+    if (!movingAcrossColumns) {
+      return;
+    }
+
     const targetTasks = getTasksByColumn(dropState.columnId).filter(t => t.id !== taskId);
     const sourceTasks = movingAcrossColumns
       ? getTasksByColumn(sourceColumnId).filter(t => t.id !== taskId)
@@ -447,7 +451,7 @@ export function KanbanBoard({ userId }: KanbanBoardProps) {
 
         <div className="flex-1 overflow-x-auto">
           <div className="p-6 space-y-4">
-            <div className="sticky top-0 z-20 -mx-6 border-b border-slate-200/70 bg-white/90 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/90">
+            <div className="sticky top-0 z-20 -mx-6 border-b border-slate-200/70 bg-white/90 px-6 py-2 backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/90">
               <div className="flex items-center gap-3">
                 <div
                   data-testid="kanban-test-element"

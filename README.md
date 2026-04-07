@@ -4,7 +4,7 @@ A polished Kanban-style task board built with Next.js 13, React 18, TypeScript, 
 
 It supports anonymous guest sessions, drag-and-drop task movement, real-time task updates, and a more visual card-based board UI.
 
-Current release: `v0.5.2`
+Current release: `v0.5.3`
 
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-wkzqtf7k)
 
@@ -42,6 +42,8 @@ Add a short drag-and-drop demo GIF here after uploading it to the repository, fo
 - Task create, update, delete, and detail modal
 - Due dates, priority badges, labels, and mock attachments
 - Refined UI with lane headers, card depth, and improved visual hierarchy
+- Unified lane headers with stronger separation from task lists
+- Cleaner fixed toolbar spacing and tighter board controls
 
 ## Tech Stack
 
@@ -213,6 +215,12 @@ If you want the GitHub page to look more complete, add a `docs/` folder and plac
 
 - `docs/screenshot-kanban-board.png`
 - `docs/kanban-demo.gif`
+
+## Release Notes
+
+The latest release notes are available in:
+
+- [RELEASE_NOTES_v0.5.3.md](./RELEASE_NOTES_v0.5.3.md)
 
 ## Recommended Next Steps
 
