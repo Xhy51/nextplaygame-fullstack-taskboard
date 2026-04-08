@@ -2,27 +2,33 @@
 
 ## Summary
 
-This release continues the Kanban UX polish work with a stronger focus on interaction clarity and board readability.
+This file now acts as a baseline note for the `main` branch release before the larger authenticated collaboration work on `dev`.
 
-## Highlights
+## Main Branch Highlights
 
-- Updated task interaction logic so only cross-column moves trigger database updates and the `Task moved` toast
-- Improved task-card interaction separation:
-  - task title opens details
-  - delete action is independent
-  - drag behavior is less error-prone
-- Reworked task creation flow into a single global `Add Task` action in the board toolbar
-- Made `due_date` required with a default of today in both UI and database migration flow
-- Switched lane sorting to frontend-only view sorting to avoid unnecessary database writes
-- Further refined lane header presentation for clearer separation from task cards
-- Cleaned repository metadata by removing unused `.bolt` files
+- Polished Kanban lane presentation and task-card UI
+- Safer drag-and-drop interactions
+- Global `Add Task` flow
+- Due date defaults and soft-delete archive support
+- Frontend-only lane sorting
 
-## Included Database Migrations
+## Dev Branch Since v0.5.3
+
+The `dev` branch currently extends beyond this release with:
+
+- email/password login
+- team members and shared organization data
+- owner / assignee / participant task roles
+- task comments
+- activity timeline
+- label manager and label assignment
+- title, priority, assignee, and label filtering
+- board summary stats
+- local admin helper script for demo accounts
+
+## Included Database Migrations Since Main Release
 
 - `20260406120000_002_add_deleted_tasks_archive.sql`
 - `20260406123000_003_make_due_date_required.sql`
-
-## Notes
-
-- Frontend lane sorting is view-only and resets to the default display order after reload
-- Deleted tasks are archived in `deleted_tasks` with `deleted_at` and `deleted_by`
+- `20260407001000_004_add_task_comments.sql`
+- `20260407002000_005_add_task_activity_logs.sql`

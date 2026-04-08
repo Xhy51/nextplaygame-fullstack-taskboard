@@ -9,19 +9,30 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export async function initializeGuestSession() {
+export async function getCurrentSession() {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    if (error) throw error;
+    return session;
+  } catch (error) {
+    console.error('Failed to get current session:', error);
+    throw error;
+  }
+}
 
-    if (session) {
-      return session;
-    }
-
-    const { data, error } = await supabase.auth.signInAnonymously();
+export async function signInWithEmail(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     if (error) throw error;
     return data.session;
   } catch (error) {
-    console.error('Failed to initialize guest session:', error);
+    console.error('Failed to sign in with email:', error);
     throw error;
   }
 }

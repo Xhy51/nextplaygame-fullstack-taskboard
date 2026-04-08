@@ -1,6 +1,6 @@
 'use client';
 
-import { Column, Task, Label as LabelType } from '@/lib/types';
+import { Column, OrganizationMember, Task, Label as LabelType } from '@/lib/types';
 import { TaskDetailModal } from './task-detail-modal';
 import { Button } from '@/components/ui/button';
 import { CalendarDays, CheckCircle2, CircleDashed, Eye, Flag, TimerReset } from 'lucide-react';
@@ -16,6 +16,7 @@ interface BoardColumnProps {
   column: Column;
   tasks: Task[];
   labels: LabelType[];
+  teamMembers?: OrganizationMember[];
   userId: string;
   boardId: string;
   onTaskCreated: () => void;
@@ -40,7 +41,6 @@ const columnThemeMap: Record<
     button: string;
     empty: string;
     icon: typeof CircleDashed;
-    subtitle: string;
     shortLabel: string;
   }
 > = {
@@ -61,7 +61,6 @@ const columnThemeMap: Record<
       'border-slate-300 bg-white/90 text-slate-700 shadow-[0_10px_20px_-16px_rgba(15,23,42,0.8)] hover:-translate-y-0.5 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white',
     empty: 'text-slate-500 dark:text-slate-400',
     icon: CircleDashed,
-    subtitle: 'Ideas and planned work',
     shortLabel: 'QUEUE',
   },
   'In Progress': {
@@ -81,7 +80,6 @@ const columnThemeMap: Record<
       'border-blue-300 bg-white/90 text-blue-700 shadow-[0_10px_20px_-16px_rgba(37,99,235,0.85)] hover:-translate-y-0.5 hover:bg-blue-100 hover:text-blue-900 dark:border-blue-700 dark:bg-slate-950 dark:text-blue-200 dark:hover:bg-blue-900/40 dark:hover:text-blue-100',
     empty: 'text-blue-600 dark:text-blue-300',
     icon: TimerReset,
-    subtitle: 'Active execution lane',
     shortLabel: 'ACTIVE',
   },
   'In Review': {
@@ -101,7 +99,6 @@ const columnThemeMap: Record<
       'border-amber-300 bg-white/90 text-amber-800 shadow-[0_10px_20px_-16px_rgba(217,119,6,0.85)] hover:-translate-y-0.5 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-700 dark:bg-slate-950 dark:text-amber-200 dark:hover:bg-amber-900/40 dark:hover:text-amber-100',
     empty: 'text-amber-700 dark:text-amber-300',
     icon: Eye,
-    subtitle: 'Validation and feedback',
     shortLabel: 'CHECK',
   },
   Done: {
@@ -121,7 +118,6 @@ const columnThemeMap: Record<
       'border-emerald-300 bg-white/90 text-emerald-800 shadow-[0_10px_20px_-16px_rgba(5,150,105,0.85)] hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-900 dark:border-emerald-700 dark:bg-slate-950 dark:text-emerald-200 dark:hover:bg-emerald-900/40 dark:hover:text-emerald-100',
     empty: 'text-emerald-700 dark:text-emerald-300',
     icon: CheckCircle2,
-    subtitle: 'Completed and ready',
     shortLabel: 'DONE',
   },
 };
@@ -130,6 +126,7 @@ export function BoardColumn({
   column,
   tasks,
   labels,
+  teamMembers = [],
   userId,
   boardId,
   onTaskCreated,
@@ -194,33 +191,30 @@ export function BoardColumn({
 
   return (
     <div
-      className={`flex-shrink-0 w-80 rounded-xl border p-4 flex flex-col h-[calc(100vh-180px)] shadow-sm transition-all ${theme.container} ${
+      className={`flex-shrink-0 w-80 rounded-xl border p-4 flex flex-col h-[calc(100vh-156px)] shadow-sm transition-all ${theme.container} ${
         isDropTarget
           ? 'ring-2 ring-offset-2 ring-offset-white ring-blue-400 shadow-[0_22px_50px_-26px_rgba(59,130,246,0.6)] dark:ring-offset-slate-950 dark:ring-blue-500'
           : ''
       }`}
     >
-      <div className={`relative mb-3 min-h-[112px] overflow-hidden rounded-2xl border p-4 shadow-[0_16px_24px_-22px_rgba(15,23,42,0.55)] ${theme.header} ${theme.headerGlow}`}>
+      <div className={`relative mb-3 min-h-[88px] overflow-hidden rounded-2xl border p-3 shadow-[0_16px_24px_-22px_rgba(15,23,42,0.55)] ${theme.header} ${theme.headerGlow}`}>
         <div className={`absolute inset-0 opacity-80 ${theme.pattern}`} />
         <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${theme.accent}`} />
         <div className="absolute right-3 top-3 h-16 w-16 rounded-full bg-white/40 blur-2xl dark:bg-white/5" />
         <div className="absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/10" />
-        <div className="relative flex h-full min-h-[80px] flex-col justify-between">
+        <div className="relative flex h-full min-h-[58px] flex-col justify-between">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 rounded-xl border border-white/70 bg-white/80 p-2 shadow-[0_10px_18px_-14px_rgba(15,23,42,0.7)] backdrop-blur dark:border-white/10 dark:bg-slate-900/75">
                 <Icon className="h-4 w-4 text-current" />
               </div>
               <div>
-                <div className={`mb-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.22em] ${theme.headerTag}`}>
+                <div className={`mb-1.5 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.22em] ${theme.headerTag}`}>
                   {theme.shortLabel}
                 </div>
                 <h2 className={`text-base font-semibold tracking-[0.01em] whitespace-nowrap ${theme.headerTitle}`}>
                   {column.name}
                 </h2>
-                <p className={`mt-1 text-xs font-medium ${theme.headerSubtitle}`}>
-                  {theme.subtitle}
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -307,6 +301,7 @@ export function BoardColumn({
       <TaskDetailModal
         task={selectedTask}
         labels={labels}
+        teamMembers={teamMembers}
         isOpen={isDetailOpen}
         onClose={() => {
           setIsDetailOpen(false);
